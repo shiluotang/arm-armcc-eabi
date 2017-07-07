@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+source /usr/local/bin/armcc-config
+
+function main() {
+    local arguments=${@}
+    local has_create_flag=0
+    local has_replace_flag=0
+    local has_update_flag=0
+
+    if [[ ! -z ${arguments} ]]; then
+        arguments="-${@}"
+    fi
+    cmd //c ${ARMCCBIN}/armar.exe ${arguments[@]}
+}
+
+main "${@}"

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+source /usr/local/bin/armcc-config
+
+function main() {
+    local arguments=${@}
+    local has_compile_flag=0
+    local has_link_flag=0
+    local has_preprocessor_flag=0
+    local has_help_flag=0
+    if [[ "${arguments}" == "-c "* || "${arguments}" == *" -c "* ]]; then
+        has_compile_flag=1
+    fi
+    if [[ "${arguments}" == "-o "* || "${arguments}" == *" -o "* ]]; then
+        has_link_flag=1
+    fi
+    if [[ "${arguments}" == "-E "* || "${arguments}" == *" -E "* ]]; then
+        has_preprocessor_flag=1
+    fi
+    if [[ "${arguments}" == "--help "* \
+        || "${arguments}" == *" --help "* ]]; then
+        has_help_flag=1
+    fi
+    if [[ "${arguments}" == "--h "* \
+        || "${arguments}" == *" --h "* ]]; then
+        has_help_flag=1
+    fi
+    if [[ "${arguments}" == "-h "* \
+        || "${arguments}" == *" -h "* ]]; then
+        has_help_flag=1
+    fi
+
+    # no link flag && no compile flag && no preprocessor flag
+    if [[ \
+        ${has_compile_flag} -eq 0 \
+        && ${has_link_flag} -eq 0 \
+        && ${has_preprocessor_flag} -eq 0 \
+        && ${has_help_flag} -eq 0 \
+        ]]; then
+        if [[ ! -z ${arguments} ]]; then
+            arguments=" -o a.out ${@}"
+        fi
+    fi
+    cmd //c ${ARMCCBIN}/armcc.exe ${arguments[@]}
+}
+
+main "${@}"
