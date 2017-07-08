@@ -42,9 +42,9 @@ function main() {
             fi
         done
     fi
-    
-    # Set output file to a.out, only if it is compiling an 
-    # executable and NO default output name is specified. 
+
+    # Set output file to a.out, only if it is compiling an
+    # executable and NO default output name is specified.
     # This is used to cheat autoconf "AC_PROG_CC".
     if [[ \
         ${is_compiling} -eq 1 && \
