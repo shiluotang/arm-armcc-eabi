@@ -1,45 +1,56 @@
 #!/usr/bin/env bash
 
-source /usr/local/bin/armcc-config
+source $(dirname ${BASH_SOURCE[0]})/armcc-config
 
 function main() {
     local arguments=${@}
-    local has_compile_flag=0
-    local has_link_flag=0
-    local has_preprocessor_flag=0
-    local has_help_flag=0
-    if [[ "${arguments}" == "-c "* || "${arguments}" == *" -c "* ]]; then
-        has_compile_flag=1
-    fi
-    if [[ "${arguments}" == "-o "* || "${arguments}" == *" -o "* ]]; then
-        has_link_flag=1
-    fi
-    if [[ "${arguments}" == "-E "* || "${arguments}" == *" -E "* ]]; then
-        has_preprocessor_flag=1
-    fi
-    if [[ "${arguments}" == "--help "* \
-        || "${arguments}" == *" --help "* ]]; then
-        has_help_flag=1
-    fi
-    if [[ "${arguments}" == "--h "* \
-        || "${arguments}" == *" --h "* ]]; then
-        has_help_flag=1
-    fi
-    if [[ "${arguments}" == "-h "* \
-        || "${arguments}" == *" -h "* ]]; then
-        has_help_flag=1
-    fi
+    local readonly compile_flag='-c'
+    local readonly link_flag='-o'
+    local readonly preprocess_flag='-E'
+    local readonly help_flags=('-help' '--help' '-h' '--h')
+    local readonly compiling_flags=("${link_flag}" "${compile_flag}")
+    local readonly compiling_cancel_flags=("${preprocess_flags}" "${help_flags}")
 
-    # no link flag && no compile flag && no preprocessor flag
-    if [[ \
-        ${has_compile_flag} -eq 0 \
-        && ${has_link_flag} -eq 0 \
-        && ${has_preprocessor_flag} -eq 0 \
-        && ${has_help_flag} -eq 0 \
-        ]]; then
-        if [[ ! -z ${arguments} ]]; then
-            arguments=" -o a.out ${@}"
+    local is_compiling_cancelled=0
+    local is_compiling=0
+    local output_not_specified=1
+
+    for compiling_cancel_flag in ${compiling_cancel_flags[@]}
+    do
+        if [[ \
+            "${arguments}" == "${compiling_cancel_flag} "* || \
+            "${arguments}" == *" ${compiling_cancel_flag} "* || \
+            "${arguments}" == *" ${compiling_cancel_flag}" \
+            ]]; then
+            is_compiling_cancelled=1
+            break
         fi
+    done
+    if [[ ${is_compiling_cancelled} -eq 0 ]]; then
+        for compiling_flag in ${compiling_flags}
+        do
+            if [[ \
+                "${arguments}" == "${compile_flag} "* || \
+                "${arguments}" == *" ${compile_flag} "* || \
+                "${arguments}" == *" ${compile_flag}" \
+                ]]; then
+                is_compiling=1
+                if [[ ${compile_flag} == ${link_flag} ]]; then
+                    output_not_specified=0
+                fi
+                break
+            fi
+        done
+    fi
+    
+    # Set output file to a.out, only if it is compiling an 
+    # executable and NO default output name is specified. 
+    # This is used to cheat autoconf "AC_PROG_CC".
+    if [[ \
+        ${is_compiling} -eq 1 && \
+        ${output_not_specified} -eq 1
+        ]]; then
+        arguments="${@} -o a.out"
     fi
     cmd //c ${ARMCCBIN}/armcc.exe ${arguments[@]}
 }
