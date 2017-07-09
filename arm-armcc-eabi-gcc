@@ -3,37 +3,34 @@
 source $(dirname ${BASH_SOURCE[0]})/armcc-config
 
 function main() {
-    local arguments=${@}
-    local readonly compile_flag='-c'
-    local readonly link_flag='-o'
-    local readonly preprocess_flag='-E'
-    local readonly help_flags=('-help' '--help' '-h' '--h')
-    local readonly compiling_flags=("${link_flag}" "${compile_flag}")
-    local readonly compiling_cancel_flags=("${preprocess_flags}" "${help_flags}")
+    local arguments=" ${@} "
+    local readonly COMPILE_FLAG='-c'
+    local readonly LINK_FLAG='-o'
+    local readonly PREPROCESS_FLAG='-E'
+    local readonly HELP_FLAGS=('-help' '--help' '-h' '--h')
+    local readonly COMPILE_EXPLICITLY_FLAGS=("${LINK_FLAG}" "${COMPILE_FLAG}")
+    local readonly COMPILE_CANCEL_FLAGS=("${PREPROCESS_FLAG}" "${HELP_FLAGS[@]}")
+
+    local readonly GCC_MD_FLAG='-MD'
+    local readonly ARMCC_MD_FLAG='--md'
+
+    local readonly GCC_MF_FLAG='-MF'
+    local readonly ARMCC_DEPEND_FLAG='--depend'
 
     local is_compiling_cancelled=0
     local is_compiling_exlicitly=0
-    local output_not_specified=1
 
-    for compiling_cancel_flag in ${compiling_cancel_flags[@]}
+    for cancel_flag in ${COMPILE_CANCEL_FLAGS[@]}
     do
-        if [[ \
-            "${arguments}" == "${compiling_cancel_flag} "* || \
-            "${arguments}" == *" ${compiling_cancel_flag} "* || \
-            "${arguments}" == *" ${compiling_cancel_flag}" \
-            ]]; then
+        if [[ "${arguments}" == *" ${cancel_flag} "* ]]; then
             is_compiling_cancelled=1
             break
         fi
     done
     if [[ ${is_compiling_cancelled} -eq 0 ]]; then
-        for compiling_flag in ${compiling_flags}
+        for compile_explicit_flag in ${COMPILE_EXPLICITLY_FLAGS[@]}
         do
-            if [[ \
-                "${arguments}" == "${compile_flag} "* || \
-                "${arguments}" == *" ${compile_flag} "* || \
-                "${arguments}" == *" ${compile_flag}" \
-                ]]; then
+            if [[ "${arguments}" == *" ${compile_explicit_flag} "* ]]; then
                 is_compiling_exlicitly=1
                 break
             fi
@@ -49,6 +46,10 @@ function main() {
         ]]; then
         arguments="${@} -o a.out"
     fi
+    arguments=${arguments// ${GCC_MD_FLAG} / ${ARMCC_MD_FLAG} }
+    arguments=${arguments// ${GCC_MF_FLAG} / ${ARMCC_DEPEND_FLAG} }
+    #echo '[ORIGIN]' armcc.exe ${@} >> ${HOME}/armcc.log
+    #echo '[ACTUAL]' armcc.exe ${arguments[@]} >> ${HOME}/armcc.log
     cmd //c ${ARMCCBIN}/armcc.exe ${arguments[@]}
 }
 
