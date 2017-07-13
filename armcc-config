@@ -5,3 +5,134 @@ if [[ -z ${ARMCC_CONFIG_INCLUDED} ]]; then
 fi
 
 declare readonly ARMCCBIN='/usr/lib/arm/RVCT/Programs/3.1/569/win_32-pentium'
+
+function extractProgNameToPrint() {
+    local readonly GCC_PRINT_PROG_LD='-print-prog-name='
+    local readonly arguments="${@}"
+    local prog=
+    if [[ ${arguments} =~ "(-print-prog-name=)([^[:space:]]*)" ]]; then
+        echo ${BASH_REMATCH[2]}
+    fi
+}
+
+################################################
+# ar (archiver)
+################################################
+function filterArchiverArguments() {
+    local readonly GCC_AT_FLAG='@'
+    local readonly ARMCC_VIA_FLAG='--via'
+    local arguments="${@}"
+    if [[ ! -z "${arguments}" ]]; then
+        if [[ "${arguments:0:1}" != '@' ]]; then
+            arguments="-${arguments[@]}"
+        else
+            arguments="${ARMCC_VIA_FLAG} ${arguments:1}"
+        fi
+    fi
+    arguments=${arguments// ${GCC_AT_FLAG}/ ${ARMCC_VIA_FLAG} }
+    #echo '[ORIGIN]' armar ${@}
+    #echo '[ACTUAL]' armar ${arguments[@]}
+    echo "${arguments[@]}"
+}
+
+################################################
+# gcc (compiler)
+################################################
+function filterCompilerArguments() {
+    local arguments=" ${@} "
+
+    local readonly COMPILE_FLAG='-c'
+    local readonly LINK_FLAG='-o'
+    local readonly PREPROCESS_FLAG='-E'
+    local readonly HELP_FLAGS=('-help' '--help' '-h' '--h')
+    local readonly COMPILE_EXPLICITLY_FLAGS=("${LINK_FLAG}" "${COMPILE_FLAG}")
+    local readonly COMPILE_CANCEL_FLAGS=("${PREPROCESS_FLAG}" "${HELP_FLAGS[@]}")
+
+    local readonly GCC_MD_FLAG='-MD'
+    local readonly ARMCC_MD_FLAG='--md'
+
+    local readonly GCC_MF_FLAG='-MF'
+    local readonly ARMCC_DEPEND_FLAG='--depend_format=unix_escaped --depend'
+
+    local readonly GCC_MM_FLAG='-MM'
+    local readonly ARMCC_NO_DEPEND_SYSTEM_HEADERS='--no_depend_system_headers'
+
+    local readonly GCC_AT_FLAG='@'
+    local readonly ARMCC_VIA_FLAG='--via'
+
+    local readonly GCC_TRADITIONAL_CPP_FLAG='--traditional-cpp'
+    local readonly ARMCC_NULL_FLAG=''
+
+    local is_compiling_cancelled=0
+    local is_compiling_exlicitly=0
+
+    for cancel_flag in ${COMPILE_CANCEL_FLAGS[@]}
+    do
+        if [[ "${arguments}" == *" ${cancel_flag} "* ]]; then
+            is_compiling_cancelled=1
+            break
+        fi
+    done
+    if [[ ${is_compiling_cancelled} -eq 0 ]]; then
+        for compile_explicit_flag in ${COMPILE_EXPLICITLY_FLAGS[@]}
+        do
+            if [[ "${arguments}" == *" ${compile_explicit_flag} "* ]]; then
+                is_compiling_exlicitly=1
+                break
+            fi
+        done
+    fi
+
+    # Set output file to a.out, only if it is compiling an
+    # executable and NO default output name is specified.
+    # This is used to cheat autoconf "AC_PROG_CC".
+    if [[ \
+        ${is_compiling_cancelled} -eq 0 && \
+        ${is_compiling_exlicitly} -eq 0
+        ]]; then
+        arguments="${arguments} -o a.out"
+    fi
+    arguments=${arguments// ${GCC_MD_FLAG} / ${ARMCC_MD_FLAG} }
+    arguments=${arguments// ${GCC_MF_FLAG} / ${ARMCC_DEPEND_FLAG} }
+    arguments=${arguments// ${GCC_MM_FLAG} / ${ARMCC_NO_DEPEND_SYSTEM_HEADERS} }
+    arguments=${arguments// ${GCC_AT_FLAG}/ ${ARMCC_VIA_FLAG} }
+    arguments=${arguments//${GCC_TRADITIONAL_CPP_FLAG}/${ARMCC_NULL_FLAG}}
+    arguments=${arguments// ${GCC_FPIC_FLAG_LITTLE} / ${ARMCC_FPIC_FLAG}}
+    arguments=${arguments// ${GCC_FPIC_FLAG_BIG} / ${ARMCC_FPIC_FLAG}}
+    arguments=${arguments// ${GCC_SHARED_FLAG} / ${ARMCC_SHARED_FLAG} }
+
+    echo "${arguments[@]}"
+}
+
+################################################
+# ld (linker)
+################################################
+function filterLinkerArguments() {
+    local arguments=" ${@} "
+
+    local readonly GCC_SHARED_FLAG='-shared'
+    local readonly ARMCC_SHARED_FLAG='--shared --fpic'
+
+    arguments=${arguments// ${GCC_SHARED_FLAG} / ${ARMCC_SHARED_FLAG} }
+    echo "${arguments[@]}"
+}
+
+function execARMCCCommand() {
+    local readonly SUPPORTED_PROGS=('gcc' 'g++' 'ld' 'ar')
+    local readonly caller=${1}
+    local readonly executable=${2}
+    local readonly args="${@:3}"
+    local prog=$(extractProgNameToPrint "${args[@]}")
+    if [[ ! -z "${prog}" ]]; then
+        for supported in ${SUPPORTED_PROGS[@]}
+        do
+            if [[ "${prog}" == "${supported}" ]]; then
+                prog="${caller%-*}-${prog}"
+                break
+            fi
+        done
+        echo ${prog}
+    else
+        cmd //c ${ARMCCBIN}/${executable} "${args[@]}"
+    fi
+}
