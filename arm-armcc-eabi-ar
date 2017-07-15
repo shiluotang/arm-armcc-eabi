@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 source $(dirname ${BASH_SOURCE[0]})/armcc-config
-execARMCCCommand $(basename ${BASH_SOURCE[0]}) armar $(filterArchiverArguments "${@}")
+execARMCCCommand ${BASH_SOURCE[0]} armar $(filterArchiverArguments "${@}")

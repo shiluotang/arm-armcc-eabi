@@ -8,14 +8,16 @@ declare readonly ARMCCBIN='/usr/lib/arm/RVCT/Programs/3.1/569/win_32-pentium'
 
 function mingwpath() {
     local path="${@}"
-    echo "${path//\\/\/}"
+    path="${path//\\//}"
+    path="${path// /\\ }"
+    echo "${path}"
 }
 
-function extractProgNameToPrint() {
-    local readonly GCC_PRINT_PROG_LD='-print-prog-name='
-    local readonly arguments="${@}"
-    local prog=
-    if [[ ${arguments} =~ "(-print-prog-name=)([^[:space:]]*)" ]]; then
+function extractOptionValue() {
+    local readonly optionName=${1}
+    local readonly arguments="${@:2}"
+    local value=
+    if [[ ${arguments} =~ "(${optionName})([^[:space:]]*)" ]]; then
         echo ${BASH_REMATCH[2]}
     fi
 }
@@ -155,6 +157,57 @@ function printSearchDirs() {
     echo "libraries: $(mingwpath ${LIBRARIES})"
 }
 
+function printProgName() {
+    local readonly SUPPORTED_PROGS=('gcc' 'g++' 'ld' 'ar' 'as')
+    local readonly caller=${1}
+    local readonly prog="${@:2}"
+    if [[ ! -z "${prog}" ]]; then
+        for supported in ${SUPPORTED_PROGS[@]}
+        do
+            if [[ "${prog}" == "${supported}" ]]; then
+                prog="${caller%-*}-${prog}"
+                break
+            fi
+        done
+        echo ${prog}
+    fi
+}
+
+function printFileName() {
+    local readonly caller=${1}
+    local readonly file="${@:2}"
+    local readonly guess="${caller%-%}-${file}"
+    if [[ -f ${guess} ]]; then
+        echo "${guess}"
+    else
+        echo "${file}"
+    fi
+}
+
+function printMultiArch() {
+    echo
+}
+
+function printMultiDirectory() {
+    echo .
+}
+
+function printMultiLibDirectory() {
+    echo '.;'
+}
+
+function printMultiOsDirectory() {
+    echo '.'
+}
+
+function printSysroot() {
+    echo
+}
+
+function printSysrootHeadersSuffix() {
+    return 1
+}
+
 function execARMCCCommand() {
     local readonly GCC_PRINT_SEARCH_DIRS_FLAG='-print-search-dirs'
     local readonly GCC_PRINT_PROG_NAME_FLAG='-print-prog-name='
@@ -166,21 +219,19 @@ function execARMCCCommand() {
     local readonly GCC_PRINT_SYSROOT_FLAG='-print-sysroot'
     local readonly GCC_PRINT_SYSROOT_HEADERS_SUFFIX_FLAG='-print-sysroot-headers-suffix'
 
-    local readonly SUPPORTED_PROGS=('gcc' 'g++' 'ld' 'ar')
     local readonly caller=${1}
     local readonly executable=${2}
     local readonly args="${@:3}"
-    local prog=$(extractProgNameToPrint "${args[@]}")
-    if [[ ! -z "${prog}" ]]; then
-        for supported in ${SUPPORTED_PROGS[@]}
-        do
-            if [[ "${prog}" == "${supported}" ]]; then
-                prog="$(dirname ${BASH_SOURCE[0]})/${caller%-*}-${prog}"
-                break
-            fi
-        done
-        echo ${prog}
-    else
-        cmd //c ${ARMCCBIN}/${executable} ${args[@]}
-    fi
+    case ${args[@]} in
+        *${GCC_PRINT_SEARCH_DIRS_FLAG}*) printSearchDirs;;
+        *${GCC_PRINT_PROG_NAME_FLAG}*) printProgName ${caller} $(extractOptionValue ${GCC_PRINT_PROG_NAME_FLAG} ${args[@]});;
+        *${GCC_PRINT_FILE_NAME_FLAG}*) printFileName ${caller} $(extractOptionValue ${GCC_PRINT_FILE_NAME_FLAG} ${args[@]});;
+        *${GCC_PRINT_MULTIARCH_FLAG}*) printMultiArch;;
+        *${GCC_PRINT_MULTI_DIRECTORY_FLAG}*) printMultiDirectory;;
+        *${GCC_PRINT_MULTI_LIB_FLAG}*) printMultiLibDirectory;;
+        *${GCC_PRINT_MULTI_OS_DIRECTORY_FLAG}*) printMultiOsDirectory;;
+        *${GCC_PRINT_SYSROOT_FLAG}*) printSysroot;;
+        *${GCC_PRINT_SYSROOT_HEADERS_SUFFIX_FLAG}*) printSysrootHeadersSuffix;;
+        *) cmd //c ${ARMCCBIN}/${executable} ${args[@]};;
+    esac
 }
