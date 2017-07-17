@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
-$(dirname ${BASH_SOURCE[0]})/arm-armcc-eabi-gcc --cpp ${@}
+source $(dirname ${BASH_SOURCE[0]})/armcc-config
+execARMCCCommand ${BASH_SOURCE[0]} armcpp $(filterCompilerArguments "${@}")

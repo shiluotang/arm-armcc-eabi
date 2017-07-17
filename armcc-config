@@ -5,3 +5,234 @@ if [[ -z ${ARMCC_CONFIG_INCLUDED} ]]; then
 fi
 
 declare readonly ARMCCBIN='/usr/lib/arm/RVCT/Programs/3.1/569/win_32-pentium'
+
+function mingwpath() {
+    local path="${@}"
+    path="${path//\\//}"
+    path="${path// /\\ }"
+    echo "${path}"
+}
+
+function extractOptionValue() {
+    local readonly optionName=${1}
+    local readonly arguments="${@:2}"
+    local value=
+    if [[ ${arguments} =~ "(${optionName})([^[:space:]]*)" ]]; then
+        echo ${BASH_REMATCH[2]}
+    fi
+}
+
+################################################
+# ar (archiver)
+################################################
+function filterArchiverArguments() {
+    local readonly GCC_AT_FLAG='@'
+    local readonly ARMCC_VIA_FLAG='--via'
+    local arguments="${@}"
+    if [[ ! -z "${arguments}" ]]; then
+        if [[ "${arguments:0:1}" != '@' ]]; then
+            arguments="-${arguments[@]}"
+        else
+            arguments="${ARMCC_VIA_FLAG} ${arguments:1}"
+        fi
+    fi
+    arguments=${arguments// ${GCC_AT_FLAG}/ ${ARMCC_VIA_FLAG} }
+    #echo '[ORIGIN]' armar ${@}
+    #echo '[ACTUAL]' armar ${arguments[@]}
+    echo "${arguments[@]}"
+}
+
+################################################
+# gcc (compiler)
+################################################
+function filterCompilerArguments() {
+    local arguments=" ${@} "
+
+    local readonly COMPILE_FLAG='-c'
+    local readonly LINK_FLAG='-o'
+    local readonly PREPROCESS_FLAG='-E'
+    local readonly HELP_FLAGS=('-help' '--help' '-h' '--h')
+    local readonly COMPILE_EXPLICITLY_FLAGS=("${LINK_FLAG}" "${COMPILE_FLAG}")
+    local readonly COMPILE_CANCEL_FLAGS=("${PREPROCESS_FLAG}" "${HELP_FLAGS[@]}")
+
+    local readonly GCC_MD_FLAG='-MD'
+    local readonly ARMCC_MD_FLAG='--md'
+
+    local readonly GCC_MF_FLAG='-MF'
+    local readonly ARMCC_DEPEND_FLAG='--depend_format=unix_escaped --depend'
+
+    local readonly GCC_MM_FLAG='-MM'
+    local readonly ARMCC_NO_DEPEND_SYSTEM_HEADERS='--no_depend_system_headers'
+
+    local readonly GCC_AT_FLAG='@'
+    local readonly ARMCC_VIA_FLAG='--via'
+
+    local readonly GCC_TRADITIONAL_CPP_FLAG='--traditional-cpp'
+    local readonly ARMCC_NULL_FLAG=''
+
+    local readonly GCC_FNO_RTTI_FLAG='-fno-rtti'
+    local readonly ARMCC_NO_RTTI_FLAG='--no_rtti'
+
+    local readonly GCC_FRTTI_FLAG='-frtti'
+    local readonly ARMCC_RTTI_FLAG='--rtti'
+
+    local readonly GCC_FNO_EXCEPTIONS_FLAG='-fno-exceptions'
+    local readonly ARMCC_NO_EXCEPTIONS_FLAG='--no_exceptions'
+
+    local readonly GCC_FEXCEPTIONS_FLAG='-fexceptinos'
+    local readonly ARMCC_EXCEPTIONS_FLAG='--exceptions'
+
+    local readonly GCC_FPIC_FLAG='-fPIC'
+    local readonly ARMCC_FPIC_FLAG='--apcs=//fpic'
+
+    local readonly GCC_SHARED_FLAG='-shared'
+    local readonly ARMCC_SHARED_FLAG='--shared --fpic'
+
+    local is_compiling_cancelled=0
+    local is_compiling_exlicitly=0
+
+    for cancel_flag in ${COMPILE_CANCEL_FLAGS[@]}
+    do
+        if [[ "${arguments}" == *" ${cancel_flag} "* ]]; then
+            is_compiling_cancelled=1
+            break
+        fi
+    done
+    if [[ ${is_compiling_cancelled} -eq 0 ]]; then
+        for compile_explicit_flag in ${COMPILE_EXPLICITLY_FLAGS[@]}
+        do
+            if [[ "${arguments}" == *" ${compile_explicit_flag} "* ]]; then
+                is_compiling_exlicitly=1
+                break
+            fi
+        done
+    fi
+
+    # Set output file to a.out, only if it is compiling an
+    # executable and NO default output name is specified.
+    # This is used to cheat autoconf "AC_PROG_CC".
+    if [[ \
+        ${is_compiling_cancelled} -eq 0 && \
+        ${is_compiling_exlicitly} -eq 0
+        ]]; then
+        arguments="${arguments} -o a.out"
+    fi
+    arguments=${arguments// ${GCC_MD_FLAG} / ${ARMCC_MD_FLAG} }
+    arguments=${arguments// ${GCC_MF_FLAG} / ${ARMCC_DEPEND_FLAG} }
+    arguments=${arguments// ${GCC_MM_FLAG} / ${ARMCC_NO_DEPEND_SYSTEM_HEADERS} }
+    arguments=${arguments// ${GCC_AT_FLAG}/ ${ARMCC_VIA_FLAG} }
+    arguments=${arguments//${GCC_TRADITIONAL_CPP_FLAG}/${ARMCC_NULL_FLAG}}
+
+    arguments=${arguments//${GCC_FNO_RTTI_FLAG}/${ARMCC_NO_RTTI_FLAG}}
+    arguments=${arguments//${GCC_FRTTI_FLAG}/${ARMCC_RTTI_FLAG}}
+
+    arguments=${arguments//${GCC_FNO_EXCEPTIONS_FLAG}/${ARMCC_NO_EXCEPTIONS_FLAG}}
+    arguments=${arguments//${GCC_FEXCEPTIONS_FLAG}/${ARMCC_EXCEPTIONS_FLAG}}
+
+    arguments=${arguments// ${GCC_FPIC_FLAG} / ${ARMCC_FPIC_FLAG} }
+    arguments=${arguments// ${GCC_SHARED_FLAG} / ${ARMCC_SHARED_FLAG} }
+
+    echo "${arguments[@]}"
+}
+
+################################################
+# ld (linker)
+################################################
+function filterLinkerArguments() {
+    local arguments=" ${@} "
+
+    local readonly GCC_SHARED_FLAG='-shared'
+    local readonly ARMCC_SHARED_FLAG='--shared --fpic'
+
+    arguments=${arguments// ${GCC_SHARED_FLAG} / ${ARMCC_SHARED_FLAG} }
+    echo "${arguments[@]}"
+}
+
+function printSearchDirs() {
+    local readonly INSTALL="${ARMROOT}"
+    local readonly PROGRAMS="${RVCT31BIN}"
+    local readonly LIBRARIES="${RVCT31LIB}"
+    echo "install: $(mingwpath ${INSTALL})"
+    echo "programs: $(mingwpath ${PROGRAMS})"
+    echo "libraries: $(mingwpath ${LIBRARIES})"
+}
+
+function printProgName() {
+    local readonly SUPPORTED_PROGS=('gcc' 'g++' 'ld' 'ar' 'as')
+    local readonly caller=${1}
+    local readonly prog="${@:2}"
+    if [[ ! -z "${prog}" ]]; then
+        for supported in ${SUPPORTED_PROGS[@]}
+        do
+            if [[ "${prog}" == "${supported}" ]]; then
+                prog="${caller%-*}-${prog}"
+                break
+            fi
+        done
+        echo ${prog}
+    fi
+}
+
+function printFileName() {
+    local readonly caller=${1}
+    local readonly file="${@:2}"
+    local readonly guess="${caller%-%}-${file}"
+    if [[ -f ${guess} ]]; then
+        echo "${guess}"
+    else
+        echo "${file}"
+    fi
+}
+
+function printMultiArch() {
+    echo
+}
+
+function printMultiDirectory() {
+    echo .
+}
+
+function printMultiLibDirectory() {
+    echo '.;'
+}
+
+function printMultiOsDirectory() {
+    echo '.'
+}
+
+function printSysroot() {
+    echo
+}
+
+function printSysrootHeadersSuffix() {
+    return 1
+}
+
+function execARMCCCommand() {
+    local readonly GCC_PRINT_SEARCH_DIRS_FLAG='-print-search-dirs'
+    local readonly GCC_PRINT_PROG_NAME_FLAG='-print-prog-name='
+    local readonly GCC_PRINT_FILE_NAME_FLAG='-print-file-name='
+    local readonly GCC_PRINT_MULTIARCH_FLAG='-print-multiarch'
+    local readonly GCC_PRINT_MULTI_DIRECTORY_FLAG='-print-multi-directory'
+    local readonly GCC_PRINT_MULTI_LIB_FLAG='-print-multi-lib'
+    local readonly GCC_PRINT_MULTI_OS_DIRECTORY_FLAG='-print-multi-os-directory'
+    local readonly GCC_PRINT_SYSROOT_FLAG='-print-sysroot'
+    local readonly GCC_PRINT_SYSROOT_HEADERS_SUFFIX_FLAG='-print-sysroot-headers-suffix'
+
+    local readonly caller=${1}
+    local readonly executable=${2}
+    local readonly args="${@:3}"
+
+    case ${args[@]} in
+        *${GCC_PRINT_SEARCH_DIRS_FLAG}*) printSearchDirs;;
+        *${GCC_PRINT_PROG_NAME_FLAG}*) printProgName ${caller} $(extractOptionValue ${GCC_PRINT_PROG_NAME_FLAG} ${args[@]});;
+        *${GCC_PRINT_FILE_NAME_FLAG}*) printFileName ${caller} $(extractOptionValue ${GCC_PRINT_FILE_NAME_FLAG} ${args[@]});;
+        *${GCC_PRINT_MULTIARCH_FLAG}*) printMultiArch;;
+        *${GCC_PRINT_MULTI_DIRECTORY_FLAG}*) printMultiDirectory;;
+        *${GCC_PRINT_MULTI_LIB_FLAG}*) printMultiLibDirectory;;
+        *${GCC_PRINT_MULTI_OS_DIRECTORY_FLAG}*) printMultiOsDirectory;;
+        *${GCC_PRINT_SYSROOT_FLAG}*) printSysroot;;
+        *${GCC_PRINT_SYSROOT_HEADERS_SUFFIX_FLAG}*) printSysrootHeadersSuffix;;
+        *) cmd //c ${ARMCCBIN}/${executable} ${args[@]};;
+    esac
+}
