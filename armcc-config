@@ -83,7 +83,7 @@ function filterCompilerArguments() {
     local readonly ARMCC_EXCEPTIONS_FLAG='--exceptions'
 
     local readonly GCC_FPIC_FLAG='-fPIC'
-    local readonly ARMCC_FPIC_FLAG='--fpic'
+    local readonly ARMCC_FPIC_FLAG='--apcs=//fpic'
 
     local readonly GCC_SHARED_FLAG='-shared'
     local readonly ARMCC_SHARED_FLAG='--shared --fpic'
@@ -222,6 +222,7 @@ function execARMCCCommand() {
     local readonly caller=${1}
     local readonly executable=${2}
     local readonly args="${@:3}"
+
     case ${args[@]} in
         *${GCC_PRINT_SEARCH_DIRS_FLAG}*) printSearchDirs;;
         *${GCC_PRINT_PROG_NAME_FLAG}*) printProgName ${caller} $(extractOptionValue ${GCC_PRINT_PROG_NAME_FLAG} ${args[@]});;
