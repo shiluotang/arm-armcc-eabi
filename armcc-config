@@ -148,6 +148,21 @@ function filterLinkerArguments() {
     echo "${arguments[@]}"
 }
 
+################################################
+# objcopy (format conversion 'elf' to 'binary')
+################################################
+function filterLinkerArguments() {
+    local arguments=" ${@} "
+
+    local readonly OBJCOPY_OUTPUT_TARGET_FLAG='--output-target=binary'
+    local readonly OBJCOPY_OUTPUT_TARGET_FLAG_ABBREV='-O\s\+binary'
+    local readonly FROMELF_OUTPUT_BINARY_FLAG='--bin'
+
+    arguments=${arguments// ${OBJCOPY_OUTPUT_TARGET_FLAG} / ${FROMELF_OUTPUT_BINARY_FLAG} }
+    arguments=${arguments// ${OBJCOPY_OUTPUT_TARGET_FLAG_ABBREV} / ${FROMELF_OUTPUT_BINARY_FLAG} }
+    echo "${arguments[@]}"
+}
+
 function printSearchDirs() {
     local readonly INSTALL="${ARMROOT}"
     local readonly PROGRAMS="${RVCT31BIN}"
